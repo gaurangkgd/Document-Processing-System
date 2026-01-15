@@ -1,0 +1,527 @@
+{
+	"info": {
+		"_postman_id": "doc-processor-api-2026",
+		"name": "Document Processing System API",
+		"description": "Complete API collection for testing the Document Processing System. Includes authentication, document upload, job management, and admin endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "documentId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "jobId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('userId', response.id);",
+									"    pm.environment.set('userId', response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user account. Returns user details without password."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('token', response.token);",
+									"    pm.environment.set('token', response.token);",
+									"    pm.collectionVariables.set('userId', response.user.id);",
+									"    console.log('Token saved: ' + response.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login with username and password. Returns JWT token and user info."
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for user registration and login."
+		},
+		{
+			"name": "Documents",
+			"item": [
+				{
+					"name": "Upload Document",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('documentId', response.documentId);",
+									"    pm.collectionVariables.set('jobId', response.jobId);",
+									"    pm.environment.set('documentId', response.documentId);",
+									"    pm.environment.set('jobId', response.jobId);",
+									"    console.log('Document ID: ' + response.documentId);",
+									"    console.log('Job ID: ' + response.jobId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Select a PDF or image file to upload"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/documents/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"documents",
+								"upload"
+							]
+						},
+						"description": "Upload a document for processing. Accepts PDF, images, etc. Returns document ID and initial job ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Documents",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"documents"
+							]
+						},
+						"description": "Get all documents uploaded by the authenticated user."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Document by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/documents/{{documentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"documents",
+								"{{documentId}}"
+							]
+						},
+						"description": "Get details of a specific document by ID. User must own the document."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Document",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/documents/{{documentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"documents",
+								"{{documentId}}"
+							]
+						},
+						"description": "Delete a document and its associated jobs/results. User must own the document."
+					},
+					"response": []
+				}
+			],
+			"description": "Document management endpoints for upload, retrieval, and deletion."
+		},
+		{
+			"name": "Jobs",
+			"item": [
+				{
+					"name": "Get Job Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"jobs",
+								"{{jobId}}"
+							]
+						},
+						"description": "Get the status of a specific processing job. Shows QUEUED, PROCESSING, COMPLETED, or FAILED status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Jobs by Document",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/jobs/document/{{documentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"jobs",
+								"document",
+								"{{documentId}}"
+							]
+						},
+						"description": "Get all processing jobs for a specific document."
+					},
+					"response": []
+				},
+				{
+					"name": "Retry Failed Job",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/jobs/{{jobId}}/retry",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"jobs",
+								"{{jobId}}",
+								"retry"
+							]
+						},
+						"description": "Retry a failed job. Only works for jobs with FAILED status and retry count below max retries."
+					},
+					"response": []
+				}
+			],
+			"description": "Job management endpoints for tracking and retrying processing jobs."
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Get All Users (Admin)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"users"
+							]
+						},
+						"description": "Admin only: Get list of all users in the system."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Jobs (Admin)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/jobs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"jobs"
+							]
+						},
+						"description": "Admin only: Get list of all processing jobs across all users."
+					},
+					"response": []
+				}
+			],
+			"description": "Admin endpoints for system-wide monitoring and management (requires ADMIN role)."
+		},
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"health"
+							]
+						},
+						"description": "Check application health status (if Spring Actuator is enabled)."
+					},
+					"response": []
+				},
+				{
+					"name": "API Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/swagger-ui/index.html",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"swagger-ui",
+								"index.html"
+							]
+						},
+						"description": "Open Swagger UI for interactive API documentation."
+					},
+					"response": []
+				}
+			],
+			"description": "Health checks and API documentation endpoints."
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
+
