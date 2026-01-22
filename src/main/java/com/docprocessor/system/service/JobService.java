@@ -31,24 +31,25 @@ public class JobService {
     @Value("${rabbitmq.queue.name}")
     private String queueName;
 
-    @Transactional
-    public Job createJob(Document document) {
-        // Create Job entity with default type
-        Job job = new Job();
-        job.setDocument(document);
-        job.setJobType(JobType.DOCUMENT_PROCESSING);
-        job.setStatus(JobStatus.QUEUED);
-        job.setRetryCount(0);
-        job.setCreatedAt(LocalDateTime.now());
-
-        // Save to database
-        Job savedJob = jobRepository.save(job);
-
-        // Send job message to RabbitMQ queue
-        sendJobToQueue(savedJob);
-
-        return savedJob;
-    }
+//    @Transactional
+//    public Job createJob(Document document , Long documentId, JobType jobType) {
+//        // Create Job entity with default type
+//        Job job = new Job();
+//        job.setDocumentId(documentId);  // Set the ID directly!
+//        job.setJobType(JobType.DOCUMENT_PROCESSING);
+//        job.setStatus(JobStatus.QUEUED);
+//        job.setRetryCount(0);
+//        job.setMaxRetries(3);
+//        job.setCreatedAt(LocalDateTime.now());
+//
+//        // Save to database
+//        Job savedJob = jobRepository.save(job);
+//
+//        // Send job message to RabbitMQ queue
+////        sendJobToQueue(savedJob);
+//
+//        return savedJob;
+//    }
 
     @Transactional
     public Job createJob(Long documentId, JobType jobType) {
@@ -59,9 +60,11 @@ public class JobService {
         // Create Job entity with status QUEUED
         Job job = new Job();
         job.setDocument(document);
+        job.setDocumentId(documentId);  // ← Now this matches the parameter!    `
         job.setJobType(jobType);
         job.setStatus(JobStatus.QUEUED);
         job.setRetryCount(0);
+        job.setMaxRetries(3);
         job.setCreatedAt(LocalDateTime.now());
 
         // Save to database
@@ -69,6 +72,7 @@ public class JobService {
 
         // Send job message to RabbitMQ queue
         sendJobToQueue(savedJob);
+        rabbitTemplate.convertAndSend("document-processing-queue", savedJob.getId().toString());
 
         return savedJob;
     }

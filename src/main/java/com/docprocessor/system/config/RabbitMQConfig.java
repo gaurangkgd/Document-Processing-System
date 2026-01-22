@@ -6,14 +6,16 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.amqp.support.converter.SimpleMessageConverter;
 
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String PROCESSING_QUEUE = "document.processing.queue";
-    public static final String DEAD_LETTER_QUEUE = "document.processing.dlq";
+    public static final String PROCESSING_QUEUE = "document-processing-queue";
+    public static final String DEAD_LETTER_QUEUE = "document-processing-dlq";
     public static final String PROCESSING_EXCHANGE = "document.processing.exchange";
     public static final String PROCESSING_ROUTING_KEY = "processing";
+
 
     @Bean
     public Queue processingQueue() {
@@ -34,4 +36,15 @@ public class RabbitMQConfig {
     public Binding processingBinding(Queue processingQueue, DirectExchange processingExchange) {
         return BindingBuilder.bind(processingQueue).to(processingExchange).with(PROCESSING_ROUTING_KEY);
     }
+
+    @Bean
+    public org.springframework.amqp.support.converter.MessageConverter messageConverter() {
+        return new org.springframework.amqp.support.converter.SimpleMessageConverter();
+    }
+//    @Bean
+//    public org.springframework.amqp.rabbit.connection.ConnectionFactory connectionFactory(
+//            org.springframework.amqp.rabbit.connection.ConnectionFactory connectionFactory) {
+//        return connectionFactory;
+//    }
+
 }

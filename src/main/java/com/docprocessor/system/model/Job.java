@@ -1,17 +1,16 @@
 package com.docprocessor.system.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 import java.time.LocalDateTime;
 
 @Entity
+@Data
 @Table(name = "jobs")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -61,4 +60,9 @@ public class Job {
 
     @Column(name = "processed_by", length = 150)
     private String processedBy;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 }

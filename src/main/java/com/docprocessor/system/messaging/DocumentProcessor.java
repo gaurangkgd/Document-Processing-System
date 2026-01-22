@@ -48,7 +48,7 @@ public class DocumentProcessor {
     private final EmailService emailService;
     private final UserRepository userRepository;
 
-    @Value("${rabbitmq.queue.name:document.processing.queue}")
+    @Value("${rabbitmq.queue.name:document-processing-queue}")
     private String processingQueue;
 
     public DocumentProcessor(
@@ -68,7 +68,7 @@ public class DocumentProcessor {
         this.userRepository = userRepository;
     }
 
-    @RabbitListener(queues = "${rabbitmq.queue.name:document.processing.queue}")
+    @RabbitListener(queues = "${rabbitmq.queue.name:document-processing-queue}")
     public void processDocument(@Payload Object payload) {
         Long jobId = extractJobIdFromPayload(payload);
         if (jobId == null) {

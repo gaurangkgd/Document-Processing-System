@@ -6,6 +6,7 @@ import com.docprocessor.system.exception.ResourceNotFoundException;
 import com.docprocessor.system.exception.UnauthorizedException;
 import com.docprocessor.system.model.Document;
 import com.docprocessor.system.model.Job;
+import com.docprocessor.system.model.JobType;
 import com.docprocessor.system.model.User;
 import com.docprocessor.system.repository.DocumentRepository;
 import com.docprocessor.system.repository.UserRepository;
@@ -89,12 +90,8 @@ public class DocumentService {
 
         Document saved = documentRepository.save(document);
 
-        Object jobInfo = jobService.createJob(saved);
-
-        Long jobId = null;
-        if (jobInfo instanceof Job) {
-            jobId = ((Job) jobInfo).getId();
-        }
+        Job job = jobService.createJob(saved.getId(), JobType.TEXT_EXTRACTION);
+        Long jobId = job.getId();
 
         DocumentUploadResponseDTO response = new DocumentUploadResponseDTO();
         response.setDocumentId(saved.getId());

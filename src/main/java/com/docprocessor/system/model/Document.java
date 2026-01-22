@@ -13,6 +13,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 //import javax.persistence.*;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 
 @Entity
 @Table(name = "documents")
@@ -38,7 +40,7 @@ public class Document {
     @Column(name = "original_filename", nullable = false, length = 255)
     private String originalFilename;
 
-    @Column(name = "stored_filename", nullable = false, length = 36)
+    @Column(name = "stored_filename", nullable = false, length = 255)
     private String storedFilename; // UUID string
 
     @Column(name = "file_size", nullable = false)
@@ -64,4 +66,17 @@ public class Document {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+        this.uploadDate = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }
