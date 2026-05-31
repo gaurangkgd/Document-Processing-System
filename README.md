@@ -1,346 +1,207 @@
-# Document Processing System
+# 📂 Intelligent Document Processing Platform
 
-## 📋 Project Overview
+An enterprise-ready, production-grade full-stack SaaS application for asynchronous document ingestion, full-text intelligent search, optical character recognition (OCR), and visual metadata analysis. 
 
-The Document Processing System is a backend application for uploading, processing, and managing documents at scale. It accepts user uploads, enqueues processing jobs (text extraction, thumbnail generation, metadata extraction, OCR), and provides results via REST APIs and real-time WebSocket notifications. The system uses asynchronous workers for processing, sending email notifications when jobs complete or fail.
-
-## ✨ Features
-
-- User authentication with JWT
-- Asynchronous document processing via RabbitMQ
-- Real-time WebSocket notifications (STOMP over SockJS)
-- Email notifications for important events
-- Text extraction from PDFs (PDFBox)
-- Thumbnail generation (Thumbnailator)
-- Full-text search capability (pluggable)
-- Admin dashboard endpoints
-- RESTful API
-
-## 🛠️ Tech Stack
-
-- Backend: Spring Boot 3.x, Java 17
-- Database: PostgreSQL (production), H2 (tests)
-- Message Queue: RabbitMQ
-- Cache: Redis
-- Security: Spring Security + JWT
-- File Processing: Apache PDFBox, Thumbnailator
-- Testing: JUnit 5, Mockito, Testcontainers
-- API Documentation: Swagger / OpenAPI (springdoc)
-
-## 🏗️ Architecture
-
-This project is structured as an API server plus asynchronous worker nodes:
-
-- API Server (Spring Boot)
-  - Handles authentication, file uploads, management APIs
-  - Persists metadata to PostgreSQL
-  - Publishes jobs to RabbitMQ
-  - Sends real-time notifications via WebSocket
-
-- Worker Nodes (Spring Boot components or separate services)
-  - Consume jobs from RabbitMQ
-  - Process documents (text extraction, thumbnail, OCR, metadata)
-  - Save results to database / storage
-  - Notify API server and users via WebSocket and email
-
-This separation lets you scale API servers and workers independently.
-
-## 📐 System Design (Asynchronous Processing Flow)
-
-1. User uploads a document to the API Server.
-2. API Server stores the file on disk (or object storage) and creates a `Document` record.
-3. API Server creates one or more `Job` records (TEXT_EXTRACTION, THUMBNAIL, OCR, METADATA) with status QUEUED and publishes job messages to RabbitMQ.
-4. Worker(s) listen on the processing queue, pick up a job, update job status to PROCESSING, and process the document.
-5. Processing results are saved in `ProcessingResult` records (text, thumbnail path, metadata JSON).
-6. Worker updates job status to COMPLETED or FAILED and notifies the API Server.
-7. API Server broadcasts WebSocket notifications and sends email alerts when configured.
-
-This design allows retries, dead-letter handling, and horizontal scaling of workers.
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- JDK 17 or higher
-- Docker & Docker Compose
-- Maven (optional if using wrapper)
-- IntelliJ IDEA (recommended)
-
-### Installation Steps
-
-1. Clone the repository
-
-```bash
-git clone https://github.com/your-org/document-processing-system.git
-cd document-processing-system
-```
-
-2. Start Docker containers (Postgres, RabbitMQ, Redis)
-
-Windows (PowerShell / CMD):
-
-```powershell
-# Using the docker-compose.yml at project root
-docker-compose up -d
-```
-
-3. Configure `src/main/resources/application.properties` (or use environment variables). See the Configuration section below for required settings.
-
-4. Run the application
-
-Windows (using Maven wrapper):
-
-```powershell
-# Build and run
-./mvnw.cmd spring-boot:run
-# or build the jar and run
-./mvnw.cmd package
-java -jar target/document-processing-system-0.0.1-SNAPSHOT.jar
-```
-
-5. Access Swagger UI
-
-- Open: http://localhost:8080/swagger-ui.html or http://localhost:8080/swagger-ui/index.html
-
-## 🔧 Configuration
-
-Important `application.properties` settings (examples):
-
-```properties
-# Server
-server.port=8080
-
-# Datasource (Postgres)
-spring.datasource.url=jdbc:postgresql://localhost:5432/docprocessor
-spring.datasource.username=postgres
-spring.datasource.password=postgres
-spring.jpa.hibernate.ddl-auto=update
-
-# JWT
-jwt.secret=change_this_secret_to_a_strong_value
-jwt.expiration=86400000 # milliseconds (24h)
-
-# Storage
-storage.location=uploads
-
-# RabbitMQ
-spring.rabbitmq.host=localhost
-spring.rabbitmq.port=5672
-spring.rabbitmq.username=guest
-spring.rabbitmq.password=guest
-rabbitmq.queue.name=document.processing.queue
-
-# Redis (optional)
-spring.redis.host=localhost
-spring.redis.port=6379
-
-# Email
-app.email.enabled=false
-app.email.from=no-reply@example.com
-spring.mail.host=smtp.example.com
-spring.mail.port=587
-spring.mail.username=smtp-user
-spring.mail.password=smtp-password
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
-
-# WebSocket
-spring.web.socket.endpoint=/ws
-
-# Logging
-logging.level.root=INFO
-logging.level.com.docprocessor=DEBUG
-```
-
-Tip: prefer environment variables in production over committing secrets.
-
-## 📡 API Endpoints
-
-Below are the main endpoints (prefix: `/api`):
-
-- Auth
-  - POST /api/auth/register — Register a user (UserRegistrationDTO)
-  - POST /api/auth/login — Login and get JWT (LoginRequestDTO)
-
-- Documents
-  - POST /api/documents/upload — Upload a new document (multipart/form-data)
-  - GET /api/documents — List user documents
-  - GET /api/documents/{id} — Get document metadata
-  - DELETE /api/documents/{id} — Delete document
-
-- Jobs
-  - GET /api/jobs/{id} — Get job status
-  - GET /api/jobs/document/{documentId} — Get jobs for a document
-  - POST /api/jobs/{id}/retry — Retry failed job
-
-- Admin (examples)
-  - GET /api/admin/users — List users (ADMIN only)
-  - GET /api/admin/jobs — List all jobs (ADMIN only)
-
-Authentication: add header `Authorization: Bearer <token>` for protected endpoints.
-
-## 🧪 Running Tests
-
-Run tests with the Maven wrapper (recommended):
-
-Windows:
-
-```powershell
-./mvnw.cmd test
-```
-
-To run with code coverage using JaCoCo (if configured):
-
-```powershell
-./mvnw.cmd test jacoco:report
-```
-
-Note: The project includes H2 as a test dependency so JPA repository tests run in-memory.
-
-## 📊 Database Schema (High-level)
-
-Main entities and relationships:
-
-- User
-  - id (PK), username, email, password, role, createdAt, updatedAt
-  - One-to-many -> Document
-
-- Document
-  - id (PK), user (FK), originalFilename, storedFilename (UUID), fileSize, mimeType, storagePath, uploadDate, status, createdAt, updatedAt
-  - Many-to-one -> User
-  - One-to-many -> Job
-
-- Job
-  - id (PK), document (FK), jobType, status, retryCount, maxRetries, errorMessage, createdAt, startedAt, completedAt, processedBy
-  - Many-to-one -> Document
-  - One-to-many -> ProcessingResult
-
-- ProcessingResult
-  - id (PK), job (FK), resultType, resultData (LOB), createdAt
-  - Many-to-one -> Job
-
-This schema supports multiple processing jobs per document and multiple results per job.
-
-## 🔐 Security (JWT Flow)
-
-1. User logs in via `/api/auth/login` with username/password.
-2. Server validates credentials and returns a signed JWT containing the username and role.
-3. Client stores the JWT (e.g., localStorage or secure cookie) and includes it in the `Authorization: Bearer <token>` header for subsequent requests.
-4. `JwtAuthenticationFilter` validates the token on each request and sets the `SecurityContext` with an authenticated `UserDetails`.
-5. Role-based authorization (USER/ADMIN) is applied using Spring Security.
-
-Security notes:
-- Use HTTPS in production.
-- Keep `jwt.secret` safe and rotate periodically.
-
-## 📧 Email Configuration
-
-- Enable email: `app.email.enabled=true`
-- Configure `spring.mail.*` properties in `application.properties`.
-- Example using Gmail (not recommended for production):
-
-```properties
-spring.mail.host=smtp.gmail.com
-spring.mail.port=587
-spring.mail.username=youremail@gmail.com
-spring.mail.password=app-specific-password
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
-app.email.from=youremail@gmail.com
-```
-
-The `EmailService` provides helper methods:
-- `sendWelcomeEmail(to, username)`
-- `sendJobCompletedEmail(to, username, jobId, documentName)`
-- `sendJobFailedEmail(to, username, jobId, documentName, errorMessage)`
-
-## 🌐 WebSocket Integration
-
-- STOMP endpoint: `/ws` (SockJS fallback enabled)
-- Application prefix: `/app`
-- Topic prefix for broadcast: `/topic`
-
-Example client (JavaScript using STOMP.js + SockJS):
-
-```js
-const socket = new SockJS('/ws');
-const client = Stomp.over(socket);
-client.connect({}, function(frame) {
-  client.subscribe('/topic/jobs', function(message) {
-    const payload = JSON.parse(message.body);
-    console.log('Job notification', payload);
-  });
-});
-```
-
-## 🐳 Docker Deployment
-
-A `docker-compose.yml` is included to run dependencies (Postgres, RabbitMQ, Redis). To run locally:
-
-```powershell
-# Start services
-docker-compose up -d
-
-# Stop services
-docker-compose down
-```
-
-Build and run the application in Docker (example Dockerfile required):
-
-```powershell
-# Build jar locally
-./mvnw.cmd package -DskipTests
-
-# Run the packaged jar (example)
-docker build -t docprocessor:latest .
-docker run -e SPRING_PROFILES_ACTIVE=prod -p 8080:8080 docprocessor:latest
-```
-
-## 📝 Future Enhancements
-
-- OCR implementation (Tesseract integration)
-- S3 / object storage integration for scalable file storage
-- Advanced search filters and Elasticsearch integration
-- Document versioning and change history
-- Batch processing API and bulk uploads
-
-## 🤝 Contributing
-
-We welcome contributions — please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Run tests and linters
-4. Submit a Pull Request with a clear description and tests
-
-Please follow code style and write unit/integration tests for new features.
-
-## 📄 License
-
-This project is released under the MIT License. See `LICENSE` for details.
-
-## 👤 Author
-
-Your Name <your-email@example.com>
-
-(Replace with your real name and contact information)
-
-## 🙏 Acknowledgments
-
-Thanks to the following libraries and resources:
-
-- Spring Boot / Spring Security
-- RabbitMQ and Spring AMQP
-- Apache PDFBox
-- Thumbnailator
-- Testcontainers for integration tests
-- Springdoc OpenAPI / Swagger
+Built using a high-performance **Spring Boot** backend architecture alongside a modern, premium **React (Vite)** dashboard client, utilizing **RabbitMQ** for event-driven message queuing, **Redis** for state caching, and **PostgreSQL** for relational metadata.
 
 ---
 
-If you'd like, I can also:
-- Add a small `README-DEV.md` with detailed local development steps for IntelliJ
-- Generate a Postman collection from the controllers
-- Create a sample `application.yml` for Docker-based deployments
+## 📋 Table of Contents
+1. [✨ Platform Capabilities](#-platform-capabilities)
+2. [🛠️ Tech Stack](#️-tech-stack)
+3. [🏗️ High-Level System Architecture](#️-high-level-system-architecture)
+4. [📂 Repository Directory Structure](#-repository-directory-structure)
+5. [🚀 Quickstart Guide](#-quickstart-guide)
+6. [🧠 Intelligent OCR Fallback System](#-intelligent-ocr-fallback-system)
+7. [📸 Event-Driven Thumbnail Rendering](#-event-driven-thumbnail-rendering)
+8. [🗑️ Safe Cascade Deletion Pipeline](#️-safe-cascade-deletion-pipeline)
+9. [📡 Core API Directory](#-core-api-directory)
+10. [👤 Author & Acknowledgments](#-author--acknowledgments)
 
-Tell me which of those you'd like next and I will add them.
+---
+
+## ✨ Platform Capabilities
+
+*   **⚡ Decoupled Event-Driven Ingestion**: File uploads complete instantly. Heavy extraction tasks are immediately queued to asynchronous worker nodes via RabbitMQ to keep the REST thread pool lightweight and highly scalable.
+*   **📸 Dynamic Thumbnail Pipeline**: Extracts and renders the first page of uploaded PDFs (`PDFBox`) and resizes image uploads (`Thumbnailator`) in the background, serving them to the client statelessly and securely.
+*   **🧠 Intelligent OCR Engine (`Tess4J`)**: A multi-stage text parser that reads plain text directly, extracts structured layers from PDFs, and automatically falls back to native **Tesseract OCR** for scanned photocopies or raw images (`PNG`, `JPG`).
+*   **🔍 Full-Text Keywords Search Console**: Runs native indexes and matching preview snippet generators over extracted database fields for real-time document search.
+*   **🎨 Premium Glassmorphic Dashboard**: Designed using tech-standard typography (**Outfit** & **Inter**) and modern Tailwind variables. Features real-time background queue sync indicators, interactive dashed upload zones, and graphical result matching tags.
+*   **🗑️ Programmatic Cascade Deletion**: Deletes documents safely by programmatically cleaning up dependent extraction records, queue jobs, and purging local physical files and visual thumbnails from the disk storage.
+*   **🔑 Secure Auth Policies**: Custom JWT filtering that bypasses static uploads `/uploads/**` to minimize overhead while keeping management APIs fully secure.
+
+---
+
+## 🛠️ Tech Stack
+
+### ☕ Backend Services
+*   **Core Framework**: Spring Boot 4.x, Java 21, Spring Security + JWT
+*   **Asynchronous Messaging**: RabbitMQ (AMQP)
+*   **Cache & Session State**: Redis
+*   **Relational Database**: PostgreSQL (Production), H2 (In-memory testing)
+*   **File Analysis**: Apache PDFBox, Apache Tika, Thumbnailator
+*   **Character Recognition**: Tess4J (Tesseract JNI JNA Wrapper)
+*   **Testing Suites**: JUnit 5, AssertJ, Mockito, Testcontainers (Postgres, RabbitMQ)
+
+### 🎨 Frontend Dashboard
+*   **Core Library**: React (Vite environment)
+*   **Styling Engine**: Tailwind CSS
+*   **Navigation & State**: React Router DOM (Dynamic nav links), React AuthContext
+
+---
+
+## 🏗️ High-Level System Architecture
+
+```mermaid
+graph TD
+    A[React Client UI] -->|1. Ingest File| B[Spring Boot REST Server]
+    B -->|2. Save File on Disk| C[(Physical Storage)]
+    B -->|3. Persist Metadata| D[(PostgreSQL)]
+    B -->|4. Dispatch Job ID| E[RabbitMQ Message Broker]
+    E -->|5. Asynchronous Dequeue| F[Document Processor Worker]
+    F -->|6. Load Binary| C
+    F -->|7. Generate PDF/Image Thumbnail| C
+    F -->|8. Run OCR / Text Stripping| G{Tesseract Engine}
+    F -->|9. Save Extracted Data| H[(PostgreSQL)]
+    F -->|10. Broadcast Completion| B
+    B -->|11. Real-time Notification| A
+```
+
+---
+
+## 📂 Repository Directory Structure
+
+```text
+document-processing-system/
+├── src/main/java/com/docprocessor/system/
+│   ├── config/             # Spring Security, JNA Web Mappings, WebSocket STOMP
+│   ├── controller/         # REST APIs (Auth, Documents, Jobs, Admin consoles)
+│   ├── dto/                # Data Transfer Objects (AuthResponse, SearchResult)
+│   ├── messaging/          # RabbitMQ Listener, PDF/Image Thumbnail, Tesseract OCR
+│   ├── model/              # JPA Database Entities (User, Document, Job, Results)
+│   ├── repository/         # JPA Repository layers
+│   └── service/            # Business layer (Stateless Search, Cascade Deletion)
+├── frontend/
+│   ├── public/             # Static graphics assets
+│   ├── src/
+│   │   ├── components/     # Reusable widgets (Sticky Glassmorphic Navbar)
+│   │   ├── context/        # Global Auth providers
+│   │   ├── pages/          # SaaS views (Dashboard, Documents, Search, Auth)
+│   │   └── services/       # Frontend api clients
+│   ├── vite.config.js      # Forwarding proxy redirects for /uploads static assets
+│   └── tailwind.config.js  # Premium design styling rules
+├── uploads/                # EXCLUDED - Local physical storage path
+├── logs/                   # EXCLUDED - Runtime application logs
+├── pom.xml                 # Maven dependency manifests (Added Tess4J)
+└── docker-compose.yml      # Service configurations (Postgres, Redis, RabbitMQ)
+```
+
+---
+
+## 🚀 Quickstart Guide
+
+### Prerequisites
+*   **Java 21 (JDK)**
+*   **Node.js** (LTS version)
+*   **Docker & Docker Compose**
+*   **Tesseract OCR** (For active character extraction on raw images or scanned PDFs)
+
+---
+
+### Step 1: Start Infrastructure Containers
+Launch the required database, cache, and message queue services:
+```bash
+docker-compose up -d
+```
+*This starts PostgreSQL on port `5432`, Redis on `6379`, and RabbitMQ on `5672` (Management portal on `15672`).*
+
+---
+
+### Step 2: Configure and Start the Spring Boot Backend
+1. Open the project inside your IDE (IntelliJ IDEA / VS Code).
+2. Start the Spring Boot server using Maven:
+```powershell
+./mvnw.cmd spring-boot:run
+```
+*The API server launches on port `8080`.*
+
+---
+
+### Step 3: Install Frontend Dependencies & Start React
+Navigate to the frontend folder and activate the development server:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*The React client launches on port `3000` (auto-forwarding requests to port `8080` backend).*
+
+---
+
+## 🧠 Intelligent OCR Fallback System
+
+Scanned media (such as phone pictures or scanned PDF documents) do not contain standard digital selectable text layers. The processor utilizes a resilient fallback structure:
+
+1. **Text Stripping**: The worker uses `PDFTextStripper` to try and extract embedded digital text.
+2. **Scanned Trigger**: If the text returns empty, the pipeline instantly diverts the binary to **Tess4J** (the JNA native wrapper for the C++ **Tesseract OCR** engine).
+3. **Execution Safety**: If Tesseract is not installed on the system, the worker **logs the warning and records a placeholder message** in the search index, ensuring the background thread **never crashes**.
+
+### Installing Tesseract locally:
+*   **Windows**: Download and run the [UB Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki), and add `C:\Program Files\Tesseract-OCR` to your System Environment variables.
+*   **Linux**: `sudo apt-get install tesseract-ocr tesseract-ocr-eng`
+*   **macOS**: `brew install tesseract`
+
+---
+
+## 📸 Event-Driven Thumbnail Rendering
+
+Visual previews are generated background-threads dynamically:
+1. **PDFs**: Using `PDFBox` PDFRenderer, the worker renders the first page image at `150 DPI`.
+2. **Images**: Instantly loads the raw image payload.
+3. **Resizing**: Thumbnailator resizes the visual frames to a standardized `200x200 px` bounding rectangle.
+4. **Stateless Serving**: Files are written under the local `./uploads/` directory, proxied statelessly by Spring MVC mappings `/uploads/**`, allowing instant UI loads.
+
+---
+
+## 🗑️ Safe Cascade Deletion Pipeline
+
+To prevent database constraint violations, the `DocumentService.java` performs a safe programmatic cascade deletion:
+```java
+// 1. Cleans up background worker jobs in the queue
+jobRepository.deleteByDocumentId(id);
+
+// 2. Drops full-text matching results
+processingResultRepository.deleteByDocumentId(id);
+
+// 3. Purges metadata references in PostgreSQL
+documentRepository.deleteById(id);
+
+// 4. Physical cleanup: Erases the document file and generated thumbnail from disk
+Files.deleteIfExists(Path.of(doc.getStoragePath()));
+Files.deleteIfExists(Path.of(doc.getStoragePath() + "_thumb.png"));
+```
+
+---
+
+## 📡 Core API Directory
+
+| Endpoint | Method | Security | Purpose |
+| :--- | :---: | :---: | :--- |
+| `/api/auth/register` | `POST` | Public | Registers a new user |
+| `/api/auth/login` | `POST` | Public | Validates credentials and yields JWT |
+| `/api/documents/upload`| `POST` | User | Accepts files and dispatches RabbitMQ jobs |
+| `/api/documents` | `GET` | User | Fetches user's processed catalog |
+| `/api/documents/{id}` | `DELETE`| User | Deletes documents, metadata, and files |
+| `/api/search` | `GET` | User | Runs keyword indexing queries |
+| `/uploads/{name}` | `GET` | Public | Bypasses filters to serve thumbnails statelessly |
+
+---
+
+## 👤 Author & Acknowledgments
+
+*   **Author**: Gaurang (`gaurangkgd`)
+*   **Email**: `gauranggd1608@gmail.com`
+*   **Acknowledgments**: Built with Spring Boot, RabbitMQ, Redis, Tesseract OCR, Tailwind CSS, and net.coobird.thumbnailator.
+
+---
+*Developed as a highly resilient, enterprise-ready asynchronous processing SaaS architecture.*
