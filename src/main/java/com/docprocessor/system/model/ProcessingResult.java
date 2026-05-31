@@ -35,7 +35,6 @@ public class ProcessingResult {
     @Column(name = "result_type", nullable = false, length = 50)
     private String resultType; // e.g. EXTRACTED_TEXT, THUMBNAIL_PATH, METADATA
 
-    @Lob
     @Column(name = "result_data", nullable = false, columnDefinition = "TEXT")
     private String resultData;
 

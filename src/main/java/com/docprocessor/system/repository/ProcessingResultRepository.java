@@ -13,7 +13,16 @@ import java.util.Optional;
 public interface ProcessingResultRepository extends JpaRepository<ProcessingResult, Long> {
 
     List<ProcessingResult> findByJobId(Long jobId);
+
     Optional<ProcessingResult> findByJobIdAndResultType(Long jobId, String resultType);
-    @Query(value = "SELECT * FROM processing_results pr WHERE pr.result_type = 'EXTRACTED_TEXT' AND LOWER(pr.result_data) LIKE LOWER(CONCAT('%', :searchTerm, '%'))", nativeQuery = true)
+
+    // Find all extracted text results
+    List<ProcessingResult> findByResultType(String resultType);
+
+    @Query(value = """
+        SELECT * FROM processing_results 
+        WHERE result_type = 'EXTRACTED_TEXT' 
+        AND result_data ILIKE CONCAT('%', :searchTerm, '%')
+        """, nativeQuery = true)
     List<ProcessingResult> searchInExtractedText(@Param("searchTerm") String searchTerm);
 }

@@ -91,6 +91,23 @@ public class JobService {
                 .collect(Collectors.toList());
     }
 
+    public List<JobStatusResponseDTO> getUserJobs(Long userId) {
+        // Get all documents for the user
+        List<Document> userDocuments = documentRepository.findByUserId(userId);
+        List<Long> documentIds = userDocuments.stream()
+                .map(Document::getId)
+                .collect(Collectors.toList());
+
+        // Get all jobs for those documents
+        List<Job> jobs = jobRepository.findAll().stream()
+                .filter(job -> documentIds.contains(job.getDocumentId()))
+                .collect(Collectors.toList());
+
+        return jobs.stream()
+                .map(this::mapToJobStatusResponseDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public void updateJobStatus(Long jobId, JobStatus newStatus) {
         Job job = jobRepository.findById(jobId)
@@ -155,7 +172,7 @@ public class JobService {
     private JobStatusResponseDTO mapToJobStatusResponseDTO(Job job) {
         return JobStatusResponseDTO.builder()
                 .jobId(job.getId())
-                .documentId(job.getDocument().getId())
+                .documentId(job.getDocumentId())  // Use direct field, not lazy-loaded entity
                 .jobType(job.getJobType())
                 .status(job.getStatus())
                 .retryCount(job.getRetryCount())

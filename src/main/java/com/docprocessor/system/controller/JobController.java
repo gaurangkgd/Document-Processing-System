@@ -32,6 +32,13 @@ public class JobController {
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
 
+    @GetMapping
+    public ResponseEntity<List<JobStatusResponseDTO>> getAllUserJobs(Authentication authentication) {
+        Long userId = extractUserId(authentication);
+        List<JobStatusResponseDTO> jobs = jobService.getUserJobs(userId);
+        return ResponseEntity.ok(jobs);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<JobStatusResponseDTO> getJobStatus(@PathVariable Long id, Authentication authentication) {
         JobStatusResponseDTO dto = jobService.getJobById(id);

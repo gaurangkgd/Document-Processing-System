@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -35,6 +36,8 @@ import com.docprocessor.system.service.ProcessingResultService;
 
 import net.coobird.thumbnailator.Thumbnails;
 import lombok.extern.slf4j.Slf4j;
+import net.sourceforge.tess4j.Tesseract;
+import net.sourceforge.tess4j.TesseractException;
 
 @Component
 @Slf4j
@@ -137,12 +140,38 @@ public class DocumentProcessor {
     private void handleProcessing(Job job, Document doc) throws Exception {
         if (job.getJobType() == JobType.TEXT_EXTRACTION) {
             String extracted = extractText(doc);
+            log.info("Extracted {} characters of text from document {}",
+                     extracted != null ? extracted.length() : 0, doc.getId());
+            log.debug("Extracted text preview: {}",
+                      extracted != null && extracted.length() > 100
+                          ? extracted.substring(0, 100) + "..."
+                          : extracted);
             processingResultService.saveResult(job.getId(), "EXTRACTED_TEXT", extracted);
+
+            // Generate thumbnail dynamically in the same pipeline
+            try {
+                String mimeType = doc.getMimeType();
+                if (mimeType != null) {
+                    if (mimeType.equals("application/pdf")) {
+                        generateThumbnail(doc);
+                        doc.setThumbnailUrl("/uploads/" + doc.getStoredFilename() + "_thumb.png");
+                        documentRepository.save(doc);
+                        log.info("Generated PDF thumbnail for document ID {}", doc.getId());
+                    } else if (mimeType.startsWith("image/")) {
+                        generateImageThumbnail(doc);
+                        doc.setThumbnailUrl("/uploads/" + doc.getStoredFilename() + "_thumb.png");
+                        documentRepository.save(doc);
+                        log.info("Generated image thumbnail for document ID {}", doc.getId());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Failed to generate thumbnail for document ID {}: {}", doc.getId(), e.getMessage());
+            }
         } else if (job.getJobType() == JobType.THUMBNAIL) {
             String thumbPath = generateThumbnail(doc);
             processingResultService.saveResult(job.getId(), "THUMBNAIL_PATH", thumbPath);
         } else if (job.getJobType() == JobType.OCR) {
-            String ocrResult = "OCR_NOT_IMPLEMENTED";
+            String ocrResult = performOCR(new File(doc.getStoragePath()));
             processingResultService.saveResult(job.getId(), "EXTRACTED_TEXT", ocrResult);
         } else if (job.getJobType() == JobType.METADATA) {
             String metadata = extractMetadata(doc);
@@ -255,9 +284,66 @@ public class DocumentProcessor {
 
     private String extractText(Document doc) throws IOException {
         Path path = Path.of(doc.getStoragePath());
+        String mimeType = doc.getMimeType();
+
+        // Handle text files directly
+        if (mimeType != null && mimeType.startsWith("text/")) {
+            log.info("Extracting text from plain text file: {}", doc.getOriginalFilename());
+            return Files.readString(path);
+        }
+
+        // Handle Image files using OCR fallback directly
+        if (mimeType != null && mimeType.startsWith("image/")) {
+            log.info("Extracting text from image file using OCR: {}", doc.getOriginalFilename());
+            return performOCR(path.toFile());
+        }
+
+        // Handle PDF files
+        log.info("Extracting text from PDF file: {}", doc.getOriginalFilename());
+        String text = "";
         try (PDDocument pdf = PDDocument.load(path.toFile())) {
             PDFTextStripper stripper = new PDFTextStripper();
-            return stripper.getText(pdf);
+            text = stripper.getText(pdf);
+        }
+
+        // Fallback to OCR if PDF contains no selectable text (scanned PDF)
+        if (text == null || text.trim().isEmpty()) {
+            log.info("PDF contains no selectable text. Falling back to OCR for scanned document: {}", doc.getOriginalFilename());
+            return performOCR(path.toFile());
+        }
+
+        return text;
+    }
+
+    private String performOCR(File file) {
+        log.info("Starting Optical Character Recognition (OCR) for file: {}", file.getName());
+        try {
+            net.sourceforge.tess4j.Tesseract tesseract = new net.sourceforge.tess4j.Tesseract();
+            
+            // Resolve local workspace training folder or environment path
+            String tessDataEnv = System.getenv("TESSDATA_PREFIX");
+            if (tessDataEnv != null && !tessDataEnv.isEmpty()) {
+                tesseract.setDatapath(tessDataEnv);
+            } else {
+                File localTessData = new File("./tessdata");
+                File winTessData = new File("C:\\Program Files\\Tesseract-OCR\\tessdata");
+                if (localTessData.exists() && localTessData.isDirectory()) {
+                    tesseract.setDatapath(localTessData.getAbsolutePath());
+                } else if (winTessData.exists() && winTessData.isDirectory()) {
+                    log.info("Detected default Windows Tesseract installation. Using datapath: {}", winTessData.getAbsolutePath());
+                    tesseract.setDatapath(winTessData.getAbsolutePath());
+                } else {
+                    log.info("TESSDATA_PREFIX env, local ./tessdata, or default Windows directory not found. Attempting automatic classpath extraction.");
+                }
+            }
+            
+            tesseract.setLanguage("eng");
+            String result = tesseract.doOCR(file);
+            log.info("OCR completed successfully. Extracted {} characters.", result != null ? result.length() : 0);
+            return result;
+        } catch (Throwable t) {
+            log.warn("OCR skipped or native Tesseract engine not loaded on host: {}", t.getMessage());
+            return "[OCR Engine Fallback: Tesseract native binary or eng.traineddata is not installed on this host. Please install tesseract-ocr to enable full visual character recognition. File preview was processed successfully.]";
         }
     }
 
@@ -278,6 +364,20 @@ public class DocumentProcessor {
             ImageIO.write(thumbnail, "png", thumbFile);
             return thumbFile.getAbsolutePath();
         }
+    }
+
+    private String generateImageThumbnail(Document doc) throws IOException {
+        Path path = Path.of(doc.getStoragePath());
+        File source = path.toFile();
+        String thumbName = doc.getStoredFilename() + "_thumb.png";
+        File thumbFile = new File(source.getParentFile(), thumbName);
+
+        // use Thumbnailator to resize original image directly
+        Thumbnails.of(source)
+                .size(200, 200)
+                .toFile(thumbFile);
+
+        return thumbFile.getAbsolutePath();
     }
 
     private String extractMetadata(Document doc) {

@@ -15,4 +15,5 @@ public class DocumentResponseDTO {
     private LocalDateTime uploadDate;
     private DocumentStatus status;
     private Long userId;
+    private String thumbnailUrl;
 }

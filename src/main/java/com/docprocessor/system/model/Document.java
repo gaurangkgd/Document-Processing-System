@@ -51,6 +51,9 @@ public class Document {
 
     @Column(name = "storage_path", length = 500)
     private String storagePath;
+ 
+    @Column(name = "thumbnail_url", length = 500)
+    private String thumbnailUrl;
 
     @Column(name = "upload_date", nullable = false)
     private LocalDateTime uploadDate;

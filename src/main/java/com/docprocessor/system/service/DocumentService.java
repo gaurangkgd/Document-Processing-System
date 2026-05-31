@@ -8,7 +8,10 @@ import com.docprocessor.system.model.Document;
 import com.docprocessor.system.model.Job;
 import com.docprocessor.system.model.JobType;
 import com.docprocessor.system.model.User;
+import com.docprocessor.system.model.ProcessingResult;
 import com.docprocessor.system.repository.DocumentRepository;
+import com.docprocessor.system.repository.JobRepository;
+import com.docprocessor.system.repository.ProcessingResultRepository;
 import com.docprocessor.system.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,6 +36,8 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final JobService jobService;
     private final UserRepository userRepository;
+    private final JobRepository jobRepository;
+    private final ProcessingResultRepository processingResultRepository;
 
     @Value("${storage.location}")
     private String storageLocation;
@@ -49,10 +54,14 @@ public class DocumentService {
 
     public DocumentService(DocumentRepository documentRepository,
                            JobService jobService,
-                           UserRepository userRepository) {
+                           UserRepository userRepository,
+                           JobRepository jobRepository,
+                           ProcessingResultRepository processingResultRepository) {
         this.documentRepository = documentRepository;
         this.jobService = jobService;
         this.userRepository = userRepository;
+        this.jobRepository = jobRepository;
+        this.processingResultRepository = processingResultRepository;
     }
 
     @Transactional
@@ -128,9 +137,26 @@ public class DocumentService {
             throw new UnauthorizedException("Not authorized to delete this document");
         }
 
+        // 1. Delete associated Processing Results and Jobs
+        List<Job> jobs = jobRepository.findByDocumentId(id);
+        for (Job job : jobs) {
+            List<ProcessingResult> results = processingResultRepository.findByJobId(job.getId());
+            processingResultRepository.deleteAll(results);
+        }
+        jobRepository.deleteAll(jobs);
+
+        // 2. Delete physical files from disk
         Path path = Paths.get(doc.getStoragePath());
         Files.deleteIfExists(path);
 
+        // Delete generated thumbnail file if it exists
+        if (doc.getThumbnailUrl() != null) {
+            String thumbFilename = doc.getThumbnailUrl().substring(doc.getThumbnailUrl().lastIndexOf('/') + 1);
+            Path thumbPath = path.getParent().resolve(thumbFilename);
+            Files.deleteIfExists(thumbPath);
+        }
+
+        // 3. Delete Document record
         documentRepository.delete(doc);
     }
 
@@ -157,6 +183,7 @@ public class DocumentService {
         dto.setUploadDate(doc.getUploadDate());
         dto.setStatus(doc.getStatus());
         dto.setUserId(doc.getUserId());
+        dto.setThumbnailUrl(doc.getThumbnailUrl());
         return dto;
     }
 }
