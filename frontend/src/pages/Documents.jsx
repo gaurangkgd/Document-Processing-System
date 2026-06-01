@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { documentAPI } from '../services/api';
+import { documentAPI, UPLOADS_BASE_URL } from '../services/api';
 
 const renderFileIcon = (mimeType) => {
   if (mimeType === 'application/pdf') {
@@ -198,7 +198,7 @@ const Documents = () => {
                   <div className="flex-shrink-0 relative">
                     {doc.thumbnailUrl ? (
                       <img 
-                        src={doc.thumbnailUrl} 
+                        src={doc.thumbnailUrl.startsWith('http') ? doc.thumbnailUrl : `${UPLOADS_BASE_URL}${doc.thumbnailUrl}`} 
                         alt={doc.originalFilename} 
                         className="w-16 h-16 object-cover rounded-xl border border-slate-200 shadow-sm hover:scale-105 transition-transform duration-150" 
                         onError={(e) => {
@@ -228,7 +228,7 @@ const Documents = () => {
                 {/* Actions */}
                 <div className="flex items-center space-x-2 w-full sm:w-auto">
                   <button 
-                    onClick={() => window.open(`/uploads/${doc.storedFilename}`, '_blank')} 
+                    onClick={() => window.open(`${UPLOADS_BASE_URL}/uploads/${doc.storedFilename}`, '_blank')} 
                     className="flex-1 sm:flex-none bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition-colors cursor-pointer flex items-center justify-center space-x-1"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

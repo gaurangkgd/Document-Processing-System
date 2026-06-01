@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = '/api';
+export const UPLOADS_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? ''
+  : 'https://document-processing-system-ccuk.onrender.com';
+
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '/api'
+  : 'https://document-processing-system-ccuk.onrender.com/api';
 
 // Create axios instance with default config
 const api = axios.create({

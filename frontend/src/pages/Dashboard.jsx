@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { documentAPI, jobAPI } from '../services/api';
+import { documentAPI, jobAPI, UPLOADS_BASE_URL } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const renderFileIconMini = (mimeType) => {
@@ -170,7 +170,7 @@ const Dashboard = () => {
                     <div className="flex items-center space-x-3.5">
                       {doc.thumbnailUrl ? (
                         <img 
-                          src={doc.thumbnailUrl} 
+                          src={doc.thumbnailUrl.startsWith('http') ? doc.thumbnailUrl : `${UPLOADS_BASE_URL}${doc.thumbnailUrl}`} 
                           alt={doc.originalFilename} 
                           className="w-10 h-10 object-cover rounded-lg border border-slate-200 shadow-sm"
                           onError={(e) => {
