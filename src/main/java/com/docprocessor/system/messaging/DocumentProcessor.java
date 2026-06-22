@@ -51,6 +51,8 @@ public class DocumentProcessor {
     private final EmailService emailService;
     private final UserRepository userRepository;
 
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+
     @Value("${rabbitmq.queue.name:document-processing-queue}")
     private String processingQueue;
 
@@ -61,7 +63,8 @@ public class DocumentProcessor {
                               RabbitTemplate rabbitTemplate,
                               NotificationService notificationService,
                               EmailService emailService,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              org.springframework.data.redis.core.StringRedisTemplate redisTemplate) {
         this.jobRepository = jobRepository;
         this.documentRepository = documentRepository;
         this.processingResultService = processingResultService;
@@ -69,6 +72,7 @@ public class DocumentProcessor {
         this.notificationService = notificationService;
         this.emailService = emailService;
         this.userRepository = userRepository;
+        this.redisTemplate = redisTemplate;
     }
 
     @RabbitListener(queues = "${rabbitmq.queue.name:document-processing-queue}")
@@ -94,6 +98,11 @@ public class DocumentProcessor {
             job.setStatus(JobStatus.PROCESSING);
             job.setStartedAt(LocalDateTime.now());
             jobRepository.save(job);
+            try {
+                redisTemplate.opsForValue().set("job:status:" + jobId, JobStatus.PROCESSING.name(), java.time.Duration.ofHours(2));
+            } catch (Exception e) {
+                // Fail-safe if Redis connection is not established
+            }
 
             Optional<Document> maybeDoc = documentRepository.findById(job.getDocumentId());
             if (maybeDoc.isEmpty()) {
@@ -108,6 +117,11 @@ public class DocumentProcessor {
             job.setStatus(JobStatus.COMPLETED);
             job.setCompletedAt(LocalDateTime.now());
             jobRepository.save(job);
+            try {
+                redisTemplate.opsForValue().set("job:status:" + jobId, JobStatus.COMPLETED.name(), java.time.Duration.ofHours(2));
+            } catch (Exception e) {
+                // Fail-safe if Redis connection is not established
+            }
 
             log.info("Job {} completed successfully", jobId);
             safeNotifyCompletion(job);
@@ -199,6 +213,11 @@ public class DocumentProcessor {
         if (retries < (job.getMaxRetries() == null ? 3 : job.getMaxRetries())) {
             job.setStatus(JobStatus.QUEUED);
             jobRepository.save(job);
+            try {
+                redisTemplate.opsForValue().set("job:status:" + job.getId(), JobStatus.QUEUED.name(), java.time.Duration.ofHours(2));
+            } catch (Exception e) {
+                // Fail-safe if Redis connection is not established
+            }
             // re-queue
             rabbitTemplate.convertAndSend(processingQueue, job.getId());
             log.info("Re-queued job {} (retry {}/{})", job.getId(), retries, job.getMaxRetries());
@@ -212,6 +231,11 @@ public class DocumentProcessor {
             job.setStatus(JobStatus.FAILED);
             job.setCompletedAt(LocalDateTime.now());
             jobRepository.save(job);
+            try {
+                redisTemplate.opsForValue().set("job:status:" + job.getId(), JobStatus.FAILED.name(), java.time.Duration.ofHours(2));
+            } catch (Exception e) {
+                // Fail-safe if Redis connection is not established
+            }
             log.info("Job {} failed after {} retries", job.getId(), retries);
 
             // send failure notification

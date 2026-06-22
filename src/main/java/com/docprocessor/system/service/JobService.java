@@ -12,6 +12,7 @@ import com.docprocessor.system.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class JobService {
     private final JobRepository jobRepository;
     private final RabbitTemplate rabbitTemplate;
     private final DocumentRepository documentRepository;
+    private final StringRedisTemplate redisTemplate;
 
     @Value("${rabbitmq.queue.name}")
     private String queueName;
@@ -70,6 +72,13 @@ public class JobService {
         // Save to database
         Job savedJob = jobRepository.save(job);
 
+        // Cache initial status in Redis
+        try {
+            redisTemplate.opsForValue().set("job:status:" + savedJob.getId(), JobStatus.QUEUED.name(), java.time.Duration.ofHours(2));
+        } catch (Exception e) {
+            // Fail-safe if Redis connection is not established
+        }
+
         // Send job message to RabbitMQ queue
         sendJobToQueue(savedJob);
         rabbitTemplate.convertAndSend("document-processing-queue", savedJob.getId().toString());
@@ -78,8 +87,34 @@ public class JobService {
     }
 
     public JobStatusResponseDTO getJobById(Long id) {
+        String cachedStatus = null;
+        try {
+            cachedStatus = redisTemplate.opsForValue().get("job:status:" + id);
+        } catch (Exception e) {
+            // Fail-safe if Redis connection is not established
+        }
+
+        if (cachedStatus != null) {
+            Job job = jobRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Job not found with id: " + id));
+            JobStatusResponseDTO dto = mapToJobStatusResponseDTO(job);
+            try {
+                dto.setStatus(JobStatus.valueOf(cachedStatus));
+            } catch (Exception e) {
+                // Fail-safe for invalid status string parsed
+            }
+            return dto;
+        }
+
         Job job = jobRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found with id: " + id));
+
+        // Populate cache on miss
+        try {
+            redisTemplate.opsForValue().set("job:status:" + id, job.getStatus().name(), java.time.Duration.ofHours(2));
+        } catch (Exception e) {
+            // Fail-safe if Redis connection is not established
+        }
 
         return mapToJobStatusResponseDTO(job);
     }
@@ -130,6 +165,13 @@ public class JobService {
         }
 
         jobRepository.save(job);
+
+        // Update status in Redis cache
+        try {
+            redisTemplate.opsForValue().set("job:status:" + jobId, newStatus.name(), java.time.Duration.ofHours(2));
+        } catch (Exception e) {
+            // Fail-safe if Redis connection is not established
+        }
     }
 
     @Transactional
@@ -152,6 +194,13 @@ public class JobService {
 
         // Save updated job
         Job savedJob = jobRepository.save(job);
+
+        // Update status in Redis cache
+        try {
+            redisTemplate.opsForValue().set("job:status:" + jobId, JobStatus.QUEUED.name(), java.time.Duration.ofHours(2));
+        } catch (Exception e) {
+            // Fail-safe if Redis connection is not established
+        }
 
         // Send to queue again
         sendJobToQueue(savedJob);
